@@ -46,7 +46,7 @@ The SPA assumes the Agora Web Video SDK will be included via a `<script>` tag in
 
 ### CLI prototype (`main.py`)
 
-`main.py` provides a CLI-oriented entry point that documents how the flows from the Figma blueprint map into this prototype:
+`main.py` provides a CLI-oriented entry point that documents how the flows from the blueprint map into this prototype:
 - `main()` builds a multi-line description using `textwrap.dedent` and prints it.
 - The description outlines the key flows (landing, tutor interface, writing practice, progress dashboard, session summary) and explicitly calls out next steps:
   - Hooking this prototype into the existing ConvAI/backend stack used in "agorabot".
@@ -102,3 +102,4 @@ At minimum, set the following environment variables before running the app in a 
 - `AGORA_CONVAI_API_KEY`
 
 For local development without external services, you can omit these and rely on the backend's stub behavior (echo tutor replies and dummy video tokens).
+
