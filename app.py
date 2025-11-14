@@ -189,6 +189,16 @@ class SessionSummary(BaseModel):
     message: str
 
 
+class ConvAIJoinRequest(BaseModel):
+    channel: str
+    user_uid: str
+
+
+class ConvAIJoinResponse(BaseModel):
+    status: str
+    details: Optional[Dict[str, Any]] = None
+
+
 # ---------------------------------------------------------------------------
 # Configuration helpers (Agora + ConvAI)
 # ---------------------------------------------------------------------------
@@ -196,6 +206,7 @@ class SessionSummary(BaseModel):
 
 AGORA_APP_ID = os.getenv("AGORA_APP_ID")
 AGORA_APP_CERTIFICATE = os.getenv("AGORA_APP_CERTIFICATE")
+AGORA_AGENT_ID = os.getenv("AGORA_AGENT_ID")  # Optional: ConvAI agent identifier
 AGORA_CHANNEL = os.getenv("AGORA_CHANNEL")
 AGORA_TOKEN_SERVER_URL = os.getenv("AGORA_TOKEN_SERVER_URL")
 AGORA_RTC_TOKEN_EXPIRE_SECONDS = int(os.getenv("AGORA_RTC_TOKEN_EXPIRE_SECONDS", "3600"))
@@ -505,7 +516,9 @@ def _fetch_agora_video_token(channel: str, uid: str) -> VideoTokenResponse:
     1. If `AGORA_TOKEN_SERVER_URL` is configured, call that external token server.
     2. Else if `AGORA_APP_CERTIFICATE` and `RtcTokenBuilder` are available, generate
        an RTC token locally using the Agora token builder library.
-    3. Else, fall back to a local stub token (suitable only for preview).
+
+    If neither path is available or token generation fails, this raises an HTTP 5xx
+    instead of returning a dummy token so failures are visible.
     """
 
     if not AGORA_APP_ID:
@@ -529,6 +542,7 @@ def _fetch_agora_video_token(channel: str, uid: str) -> VideoTokenResponse:
         if not token:
             raise HTTPException(status_code=500, detail="Token server did not return a 'token' field")
 
+        logger.info("Using RTC token from external token server for channel=%s uid=%s", channel, uid)
         return VideoTokenResponse(app_id=AGORA_APP_ID, channel=channel, token=token)
 
     # 2) Local token generation using Agora app certificate (no external server)
@@ -536,23 +550,137 @@ def _fetch_agora_video_token(channel: str, uid: str) -> VideoTokenResponse:
         try:
             import time
 
+            try:
+                uid_int = int(uid)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=f"RTC uid must be numeric, got '{uid}'") from exc
+
             role_publisher = 1  # Agora Role_Publisher
             expire_ts = int(time.time()) + AGORA_RTC_TOKEN_EXPIRE_SECONDS
-            token = RtcTokenBuilder.buildTokenWithUserAccount(
+            # Most versions of agora-token-builder expose buildTokenWithUid for numeric UIDs.
+            token = RtcTokenBuilder.buildTokenWithUid(
                 AGORA_APP_ID,
                 AGORA_APP_CERTIFICATE,
                 channel,
-                uid,
+                uid_int,
                 role_publisher,
                 expire_ts,
             )
+            logger.info("Using locally generated RTC token for channel=%s uid=%s", channel, uid_int)
             return VideoTokenResponse(app_id=AGORA_APP_ID, channel=channel, token=token)
+        except HTTPException:
+            raise
         except Exception as exc:  # pragma: no cover - optional path
-            logger.warning("Agora local token generation failed, falling back to stub: %s", exc)
+            logger.error("Agora local token generation failed: %s", exc)
+            raise HTTPException(status_code=500, detail=f"Local RTC token generation failed: {exc}") from exc
 
-    # 3) Fallback: local-only stub for development so the rest of the flow can be tested.
-    dummy_token = f"DUMMY_TOKEN_FOR_{channel}_{uid}"
-    return VideoTokenResponse(app_id=AGORA_APP_ID, channel=channel, token=dummy_token)
+    # 3) No way to generate a token.
+    raise HTTPException(status_code=500, detail="No RTC token mechanism configured (AGORA_TOKEN_SERVER_URL or AGORA_APP_CERTIFICATE + agora-token-builder)")
+
+
+def _convai_join_rtc(channel: str, user_uid: str) -> Dict[str, Any]:
+    """Ask Agora Conversational AI agent to join the same RTC channel as the user.
+
+    This mirrors your working ConvAI join script: the agent uses a numeric RTC uid
+    (0), and the join payload configures Groq as the LLM and Azure as TTS.
+    """
+
+    if not AGORA_CONVAI_CHAT_URL or "/join" not in AGORA_CONVAI_CHAT_URL:
+        raise HTTPException(status_code=500, detail="AGORA_CONVAI_CHAT_URL for /join is not configured")
+    if not AGORA_CREDENTIALS:
+        raise HTTPException(status_code=500, detail="AGORA_CREDENTIALS (Basic ...) is required for ConvAI join")
+
+    # Generate an RTC token for the ConvAI agent to join this channel with uid 0.
+    agent_rtc_uid = "0"
+    agent_token = _fetch_agora_video_token(channel=channel, uid=agent_rtc_uid).token
+
+    # LLM + TTS config for ConvAI agent, matching your example script.
+    llm_config: Dict[str, Any] = {
+        "url": GROQ_API_URL,
+        "api_key": GROQ_API_KEY,
+        "system_messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are MisSpoke, a gentle, encouraging language tutor. "
+                    "You practice conversational language with the user in real time."
+                ),
+            }
+        ],
+        "greeting_message": "Hello, how can I help you today?",
+        "failure_message": "Sorry, I don't know how to answer this question.",
+        "max_history": 10,
+        "params": {
+            "model": GROQ_MODEL,
+            "stream": True,
+        },
+    }
+
+    tts_config: Dict[str, Any] = {
+        "vendor": "microsoft",
+        "params": {
+            "key": AZURE_SPEECH_KEY,
+            "region": AZURE_SPEECH_REGION,
+            "voice_name": AZURE_SPEECH_VOICE,
+            "speed": 1.0,
+            "volume": 70,
+            "sample_rate": 24000,
+        },
+    }
+
+    asr_config: Dict[str, Any] = {
+        "language": "en-US",
+    }
+
+    join_payload: Dict[str, Any] = {
+        "name": "MisSpoke",
+        "properties": {
+            "channel": channel,
+            "token": agent_token,
+            "agent_rtc_uid": agent_rtc_uid,
+            "remote_rtc_uids": ["*"],
+            "enable_string_uid": False,
+            "idle_timeout": 120,
+            "llm": llm_config,
+            "asr": asr_config,
+            "tts": tts_config,
+        },
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": AGORA_CREDENTIALS,
+    }
+
+    try:
+        logger.info("Calling Agora ConvAI /join at %s for channel=%s", AGORA_CONVAI_CHAT_URL, channel)
+        response = requests.post(
+            AGORA_CONVAI_CHAT_URL,
+            json=join_payload,
+            headers=headers,
+            timeout=15,
+        )
+        logger.info("Agora ConvAI /join response status: %d", response.status_code)
+
+        # 409 Conflict is commonly returned when an agent is already joined on
+        # this project/channel. Treat that as a non-fatal "already joined".
+        if response.status_code == 409:
+            body_text = response.text
+            logger.warning("ConvAI /join returned 409 (already joined?) for channel %s: %s", channel, body_text)
+            return {"status": "already_joined", "raw": body_text}
+
+        response.raise_for_status()
+        data: Dict[str, Any] = response.json()
+        logger.info("✓ ConvAI agent join accepted for channel %s", channel)
+        return data
+    except requests.RequestException as exc:
+        # Log full body when available for easier debugging.
+        try:
+            body_text = response.text  # type: ignore[name-defined]
+        except Exception:
+            body_text = "<no body>"
+        logger.error("✗ ConvAI /join call failed: %s - %s; body=%s", type(exc).__name__, str(exc), body_text)
+        raise HTTPException(status_code=502, detail=f"ConvAI join failed: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -635,6 +763,19 @@ async def video_token(request: VideoTokenRequest) -> VideoTokenResponse:
     """
 
     return _fetch_agora_video_token(channel=request.channel, uid=request.uid)
+
+
+@app.post("/api/convai/join", response_model=ConvAIJoinResponse)
+async def convai_join(body: ConvAIJoinRequest) -> ConvAIJoinResponse:
+    """Trigger Agora ConvAI agent to join the same RTC channel as the user.
+
+    The browser should call this after it has successfully joined and published
+    to the RTC channel. On success, the ConvAI agent will join that channel
+    using `AGORA_AGENT_ID`.
+    """
+
+    details = _convai_join_rtc(channel=body.channel, user_uid=body.user_uid)
+    return ConvAIJoinResponse(status="joined", details=details)
 
 
 @app.get("/api/progress", response_model=ProgressSnapshot)

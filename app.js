@@ -91,6 +91,8 @@
     targetLanguage: null,
     nickname: "",
     inCall: false,
+    // Separate numeric uid for Agora RTC (must be numeric for buildTokenWithUid).
+    rtcUid: Math.floor(Math.random() * 1000000000).toString(),
   };
 
   const agora = {
@@ -296,7 +298,8 @@
     // Use the same channel as your Agora ConvAI project when provided so the
     // web client and ConvAI agent are in the exact same RTC room.
     const channel = appConfig.channelName || `lesson_${(state.targetLanguage || "default").toLowerCase()}`;
-    const uid = state.userId;
+    // Use a numeric uid for Agora RTC so token generation works reliably.
+    const uid = state.rtcUid;
 
     let tokenResponse;
     try {
@@ -308,7 +311,6 @@
     }
 
     const token = tokenResponse.token;
-    const isDummyToken = typeof token === "string" && token.startsWith("DUMMY_TOKEN_FOR_");
 
     if (!window.AgoraRTC) {
       appendBubble(
@@ -320,47 +322,49 @@
 
     const AgoraRTC = window.AgoraRTC;
 
-    // Always show local preview, even if we don't have a real RTC token.
+    // Always show local preview.
     agora.client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
     try {
-      if (!isDummyToken) {
-        await agora.client.join(appId, channel, token, uid);
-      }
+      await agora.client.join(appId, channel, token, uid);
 
-      const [microphoneTrack, cameraTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-      agora.localTracks = [microphoneTrack, cameraTrack];
+      // Voice-only for now: create microphone (audio) track only so we can
+      // verify live audio with the ConvAI agent without worrying about video.
+      const microphoneTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      agora.localTracks = [microphoneTrack];
 
       if (localVideoSlot) {
-        localVideoSlot.innerHTML = "";
-        const div = document.createElement("div");
-        localVideoSlot.appendChild(div);
-        cameraTrack.play(div);
+        localVideoSlot.textContent = "Mic connected";
       }
 
       // Publish local tracks so remote participants (including the ConvAI agent)
       // can receive our audio/video, matching the Agora Web SDK quickstart.
-      if (!isDummyToken) {
-        await agora.client.publish(agora.localTracks);
+      await agora.client.publish(agora.localTracks);
 
-        agora.client.on("user-published", async (user, mediaType) => {
-          await agora.client.subscribe(user, mediaType);
-          if (mediaType === "video" && remoteVideoSlot) {
-            remoteVideoSlot.innerHTML = "";
-            const div = document.createElement("div");
-            remoteVideoSlot.appendChild(div);
-            user.videoTrack && user.videoTrack.play(div);
-          }
-          if (mediaType === "audio") {
-            user.audioTrack && user.audioTrack.play();
-          }
-        });
-      } else {
+      // After user has joined/published, ask the ConvAI agent to join the
+      // same RTC channel via the backend.
+      try {
+        await apiPost("/api/convai/join", { channel, user_uid: uid });
+      } catch (err) {
+        console.error("ConvAI join failed", err);
         appendBubble(
           "bot",
-          "Showing local camera preview only. Configure AGORA_TOKEN_SERVER_URL for full multi-user video."
+          "Joined RTC channel, but could not start the Agora ConvAI agent. Check server logs for details."
         );
       }
+
+      agora.client.on("user-published", async (user, mediaType) => {
+        await agora.client.subscribe(user, mediaType);
+        if (mediaType === "video" && remoteVideoSlot) {
+          remoteVideoSlot.innerHTML = "";
+          const div = document.createElement("div");
+          remoteVideoSlot.appendChild(div);
+          user.videoTrack && user.videoTrack.play(div);
+        }
+        if (mediaType === "audio") {
+          user.audioTrack && user.audioTrack.play();
+        }
+      });
 
       agora.joined = true;
       state.inCall = true;
