@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>MisSpoke · Conversational Tutor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color-scheme: dark light;
+      }
+
+      body {
+        margin: 0;
+        background: radial-gradient(circle at top, #101827, #020617);
+        color: #e5e7eb;
+      }
+
+      header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      header h1 {
+        font-size: 1.1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #a5b4fc;
+        margin: 0;
+      }
+
+      main {
+        display: flex;
+        justify-content: center;
+        align-items: stretch;
+        min-height: calc(100vh - 60px);
+        padding: 1.5rem;
+      }
+
+      .shell {
+        width: 100%;
+        max-width: 1120px;
+        background: radial-gradient(circle at top left, rgba(79, 70, 229, 0.35), transparent 55%),
+          radial-gradient(circle at bottom right, rgba(14, 116, 144, 0.4), transparent 55%),
+          rgba(15, 23, 42, 0.96);
+        border-radius: 1.5rem;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        box-shadow: 0 24px 80px rgba(15, 23, 42, 0.9);
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax(260px, 1.4fr);
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .robot-hero {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+        justify-content: center;
+        height: 100%;
+      }
+
+      .robot-orbit {
+        width: 96px;
+        height: 96px;
+        border-radius: 999px;
+        border: 2px dashed rgba(129, 140, 248, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: orbit 9s linear infinite;
+      }
+
+.robot-face {
+        position: relative;
+        width: 72px;
+        height: 56px;
+        border-radius: 24px;
+        background: radial-gradient(circle at top, #4f46e5, #0f172a);
+        border: 2px solid rgba(199, 210, 254, 0.85);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        box-shadow: 0 0 24px rgba(129, 140, 248, 0.8);
+      }
+
+      .robot-eye {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: #e5e7eb;
+        box-shadow: 0 0 8px rgba(248, 250, 252, 0.9);
+      }
+
+      .robot-eye.left {
+        margin-right: 8px;
+      }
+
+      .robot-eye.right {
+        margin-left: 8px;
+      }
+
+      .robot-mouth {
+        width: 28px;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.9);
+      }
+
+      .robot-face::before {
+        content: "";
+        position: absolute;
+        width: 90px;
+        height: 26px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        top: -14px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(90deg, rgba(15, 23, 42, 0.9), transparent);
+      }
+
+      @keyframes orbit {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .cloud-card {
+        background: radial-gradient(circle at top left, rgba(79, 70, 229, 0.35), transparent 60%),
+          rgba(15, 23, 42, 0.95);
+      }
+
+      .cloud-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+      }
+
+      .cloud {
+        border: none;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+        background: radial-gradient(circle at top, rgba(129, 140, 248, 0.9), rgba(79, 70, 229, 0.9));
+        color: #f9fafb;
+        font-size: 0.8rem;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.9);
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .cloud::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top, rgba(248, 250, 252, 0.08), transparent 60%);
+        opacity: 0;
+        transition: opacity 0.2s ease-out;
+      }
+
+      .cloud:hover::after,
+      .cloud.active::after {
+        opacity: 1;
+      }
+
+      .tutor-left {
+        gap: 1rem;
+      }
+
+      .tutor-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .chat-card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .right-narrow {
+        gap: 0.75rem;
+      }
+
+      .mode-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        margin-bottom: 0.6rem;
+      }
+
+      .mode-btn {
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.6);
+        background: rgba(15, 23, 42, 0.9);
+        color: #e5e7eb;
+        font-size: 0.78rem;
+        padding: 0.3rem 0.7rem;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .mode-btn.active {
+        background: linear-gradient(135deg, #4f46e5, #22c55e);
+        border-color: transparent;
+      }
+
+      .mode-view {
+        background: rgba(15, 23, 42, 0.9);
+        border-radius: 0.9rem;
+        border: 1px solid rgba(148, 163, 184, 0.6);
+        padding: 0.7rem 0.8rem;
+        font-size: 0.8rem;
+      }
+
+      .info-text {
+        font-size: 0.8rem;
+        color: #e5e7eb;
+        line-height: 1.4;
+      }
+
+      .video-shell.small {
+        min-height: 160px;
+      }
+
+      canvas#writing-canvas {
+        border-radius: 0.9rem;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        background: radial-gradient(circle at top, rgba(15, 23, 42, 0.95), #020617);
+        cursor: crosshair;
+      }
+
+      .left, .right {
+        padding: 1.5rem 1.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .right {
+        border-left: 1px solid rgba(148, 163, 184, 0.3);
+        background: radial-gradient(circle at top, rgba(15, 118, 110, 0.4), transparent 60%),
+          rgba(15, 23, 42, 0.96);
+      }
+
+      @media (max-width: 900px) {
+        .shell {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .right {
+          border-left: none;
+          border-top: 1px solid rgba(148, 163, 184, 0.3);
+        }
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        border: 1px solid rgba(129, 140, 248, 0.6);
+        background: rgba(15, 23, 42, 0.7);
+        color: #c7d2fe;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      .pill-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #22c55e;
+        box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.3);
+      }
+
+      h2 {
+        margin: 0.5rem 0 0.25rem;
+        font-size: 1.6rem;
+      }
+
+      .subtitle {
+        margin: 0 0 0.75rem;
+        color: #cbd5f5;
+        font-size: 0.95rem;
+      }
+
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+      }
+
+      select, input[type="text"] {
+        background: rgba(15, 23, 42, 0.85);
+        border-radius: 0.75rem;
+        border: 1px solid rgba(148, 163, 184, 0.9);
+        color: #e5e7eb;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
+        min-width: 160px;
+      }
+
+      button.primary {
+        border-radius: 999px;
+        border: none;
+        padding: 0.55rem 1.25rem;
+        background: linear-gradient(135deg, #4f46e5, #22c55e);
+        color: white;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        cursor: pointer;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.9);
+      }
+
+      button.primary[disabled] {
+        opacity: 0.6;
+        cursor: default;
+      }
+
+      button.secondary {
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.6);
+        padding: 0.45rem 1rem;
+        background: transparent;
+        color: #e5e7eb;
+        font-size: 0.8rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        cursor: pointer;
+      }
+
+      .section-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: #94a3b8;
+      }
+
+      .card {
+        background: rgba(15, 23, 42, 0.88);
+        border-radius: 1rem;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        padding: 0.9rem 0.9rem;
+      }
+
+      .chat-log {
+        height: 260px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding-right: 0.25rem;
+      }
+
+      .bubble {
+        max-width: 80%;
+        padding: 0.55rem 0.7rem;
+        border-radius: 0.85rem;
+        font-size: 0.85rem;
+      }
+
+      .bubble.user {
+        margin-left: auto;
+        background: linear-gradient(135deg, #4f46e5, #22c55e);
+      }
+
+      .bubble.bot {
+        margin-right: auto;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.5);
+      }
+
+      .chat-input-row {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+      }
+
+      .chat-input-row textarea {
+        flex: 1;
+        min-height: 48px;
+        max-height: 72px;
+        resize: vertical;
+        border-radius: 0.9rem;
+        border: 1px solid rgba(148, 163, 184, 0.8);
+        background: rgba(15, 23, 42, 0.9);
+        color: #e5e7eb;
+        padding: 0.5rem 0.7rem;
+        font-size: 0.85rem;
+      }
+
+      .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.4rem;
+      }
+
+      .chip {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.55rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        background: rgba(15, 23, 42, 0.9);
+        cursor: pointer;
+      }
+
+      .waveform {
+        height: 40px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(79, 70, 229, 0.2), rgba(34, 197, 94, 0.35));
+        position: relative;
+        overflow: hidden;
+      }
+
+      .waveform-bar {
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+          90deg,
+          rgba(148, 163, 184, 0.5),
+          rgba(148, 163, 184, 0.5) 1px,
+          transparent 1px,
+          transparent 3px
+        );
+        opacity: 0.7;
+        animation: wave 2.4s linear infinite;
+      }
+
+      @keyframes wave {
+        from {
+          transform: translateX(0);
+        }
+        to {
+          transform: translateX(-40px);
+        }
+      }
+
+      .view {
+        display: none;
+      }
+
+      .view.active {
+        display: block;
+      }
+
+      .view-title {
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: #94a3b8;
+        margin-bottom: 0.25rem;
+      }
+
+      .view-heading {
+        font-size: 1.1rem;
+        margin: 0 0 0.4rem;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+      }
+
+      .metric-card {
+        padding: 0.5rem 0.6rem;
+        border-radius: 0.8rem;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        font-size: 0.8rem;
+      }
+
+      .metric-label {
+        color: #9ca3af;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      .metric-value {
+        font-weight: 600;
+        margin-top: 0.2rem;
+      }
+
+      .video-shell {
+        position: relative;
+        border-radius: 1rem;
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        background: radial-gradient(circle at top, rgba(15, 118, 110, 0.55), transparent 70%);
+        min-height: 220px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .video-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        width: 100%;
+        height: 100%;
+      }
+
+      .video-slot {
+        position: relative;
+        border-right: 1px solid rgba(15, 23, 42, 0.65);
+        border-bottom: 1px solid rgba(15, 23, 42, 0.65);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        color: #d1fae5;
+      }
+
+      .video-slot:nth-child(2), .video-slot:nth-child(4) {
+        border-right: none;
+      }
+
+      .video-slot:nth-child(3), .video-slot:nth-child(4) {
+        border-bottom: none;
+      }
+
+      .video-overlay {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top, rgba(15, 23, 42, 0.2), transparent 70%);
+        pointer-events: none;
+      }
+
+      .video-footer {
+        margin-top: 0.75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .controls-row {
+        display: flex;
+        gap: 0.4rem;
+      }
+
+      .pill-small {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        color: #e5e7eb;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        margin-right: 0.25rem;
+      }
+
+      .status-dot.live {
+        background: #22c55e;
+      }
+
+      .status-dot.idle {
+        background: #f97316;
+      }
+
+      .status-dot.off {
+        background: #64748b;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>MisSpoke</h1>
+      <div class="pill">
+        <span class="pill-dot"></span>
+        <span>Agora Conversational AI · RTC Tutor</span>
+      </div>
+    </header>
+    <main>
+      <div class="shell" id="screen-welcome">
+        <section class="left">
+          <div class="robot-hero">
+            <div class="robot-orbit">
+              <div class="robot-face">
+                <div class="robot-eye left"></div>
+                <div class="robot-eye right"></div>
+                <div class="robot-mouth"></div>
+              </div>
+            </div>
+            <h2>Welcome to MisSpoke</h2>
+            <p class="subtitle">
+              A dark-mode, voice-first tutor that gently blends what you already speak
+              with the language you want to master.
+            </p>
+            <button id="btn-get-started" class="primary">
+              <span>Get started</span>
+            </button>
+          </div>
+        </section>
+        <section class="right">
+          <div class="card">
+            <div class="section-label">How it works</div>
+            <p class="info-text">
+              1. Tell MisSpoke which language youre familiar with.<br />
+              2. Choose the language you want to learn.<br />
+              3. Join a live Agora-powered call to practice with an AI tutor that
+              adapts from 90/10 to 50/50 language mixing as your fluency grows.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      <div class="shell hidden" id="screen-languages">
+        <section class="left">
+          <div>
+            <div class="pill">
+              <span class="pill-dot"></span>
+              <span>Step 1 · Languages</span>
+            </div>
+            <h2>What do you speak · what do you want to learn?</h2>
+            <p class="subtitle">
+              MisSpoke will start by using mostly your familiar language, then slowly
+              increase the share of your target language as your fluency score rises.
+            </p>
+          </div>
+
+          <div class="card cloud-card">
+            <div class="section-label">I'm comfortable speaking</div>
+            <div class="cloud-row" id="cloud-familiar">
+              <button class="cloud" data-lang="English" onclick = "AnimationEffect">English</button>
+              <button class="cloud" data-lang="Spanish" onclick = "Highlight">Spanish</button>
+              <button class="cloud" data-lang="French" onclick = "Highlight">French</button>
+              <button class="cloud" data-lang="Japanese" onclick = "Highlight">Japanese</button>
+              <button class="cloud" data-lang="Korean" onclick = "Highlight">Korean</button>
+            </div>
+          </div>
+
+          <div class="card cloud-card" style="margin-top: 0.75rem;">
+            <div class="section-label">I want to learn</div>
+            <div class="cloud-row" id="cloud-target">
+              <button class="cloud" data-lang="Spanish" >Spanish</button>
+              <button class="cloud" data-lang="French">French</button>
+              <button class="cloud" data-lang="Japanese">Japanese</button>
+              <button class="cloud" data-lang="Korean">Korean</button>
+              <button class="cloud" data-lang="Mandarin">Mandarin</button>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 0.75rem;">
+            <input id="nickname-input" type="text" placeholder="Nickname (optional)" />
+            <button id="btn-go" class="primary">
+              <span>Go to tutor</span>
+            </button>
+          </div>
+        </section>
+        <section class="right">
+          <div class="card">
+            <div class="section-label">Session mix preview</div>
+            <p class="info-text" id="mix-preview">
+              Start with 90% familiar language and 10% target language. As your
+              fluency improves, MisSpoke will shift to 80/20, then 70/30, and
+              eventually 50/50.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      <div class="shell hidden" id="screen-tutor">
+        <section class="left tutor-left">
+          <div class="tutor-header">
+            <div class="pill">
+              <span class="pill-dot"></span>
+              <span id="session-label">Session</span>
+            </div>
+            <div class="controls-row">
+            <button id="btn-join-call" class="primary" type="button">
+              <span>Join call</span>
+            </button>
+            <button id="btn-leave-call" class="secondary" type="button">
+              <span>Leave call</span>
+            </button>
+            <button id="btn-voice-test" class="secondary" type="button">
+              <span>🔊</span>
+              <span>Voice test</span>
+            </button>
+            </div>
+          </div>
+
+          <div class="card chat-card">
+            <div class="section-label">Live transcript</div>
+            <div class="chat-log" id="chat-log"></div>
+            <div class="chat-input-row">
+              <textarea
+                id="chat-input"
+                placeholder="Type here or use the mic to speak..."
+              ></textarea>
+              <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                <button id="btn-mic" class="secondary" type="button">
+                  <span>🎙</span>
+                  <span>Mic</span>
+                </button>
+                <button id="btn-send" class="primary" type="button">
+                  <span>Send</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="right right-narrow">
+          <nav class="mode-nav">
+            <button class="mode-btn active" data-mode="profile">Profile</button>
+            <button class="mode-btn" data-mode="video">Video</button>
+            <button class="mode-btn" data-mode="writing">Writing</button>
+            <button class="mode-btn" data-mode="progress">Progress</button>
+            <button class="mode-btn" data-mode="home">Home</button>
+          </nav>
+
+          <div class="mode-view" id="mode-profile">
+            <div class="section-label">Profile</div>
+            <p class="info-text" id="profile-text">
+              Start a session to see your MisSpoke learner profile.
+            </p>
+          </div>
+
+          <div class="mode-view hidden" id="mode-video">
+            <div class="section-label">Video mode</div>
+            <div class="video-shell small">
+              <div class="video-grid" id="video-grid">
+                <div class="video-slot" id="local-video">Local video</div>
+                <div class="video-slot" id="remote-video">Tutor video</div>
+                <div class="video-slot">Participant</div>
+                <div class="video-slot">Participant</div>
+              </div>
+              <div class="video-overlay"></div>
+            </div>
+            <p class="info-text">
+              Join the call to see video tiles fill up using the Agora Web Video SDK.
+            </p>
+          </div>
+
+          <div class="mode-view hidden" id="mode-writing">
+            <div class="section-label">Writing mode</div>
+            <canvas id="writing-canvas" width="260" height="160"></canvas>
+            <div class="row" style="margin-top: 0.5rem;">
+              <button id="btn-clear-writing" class="secondary" type="button">Clear</button>
+              <button id="btn-score-writing" class="primary" type="button">Check</button>
+            </div>
+            <textarea
+              id="writing-input"
+              rows="2"
+              style="margin-top: 0.5rem; width: 100%; font-size: 0.8rem;"
+              placeholder="Type what you wrote on the canvas here (or type a short sentence) to be evaluated."
+            ></textarea>
+            <p class="info-text" id="writing-feedback" style="margin-top: 0.5rem;">
+              Write a character or phrase, type it in the box above, then tap Check for feedback.
+            </p>
+          </div>
+
+          <div class="mode-view hidden" id="mode-progress">
+            <div class="section-label">Progress</div>
+            <div class="metric-grid">
+              <div class="metric-card">
+                <div class="metric-label">Speaking</div>
+                <div class="metric-value" id="metric-speaking">–</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Listening</div>
+                <div class="metric-value" id="metric-listening">–</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Writing</div>
+                <div class="metric-value" id="metric-writing">–</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Fluency</div>
+                <div class="metric-value" id="metric-fluency">–</div>
+              </div>
+            </div>
+            <p class="info-text" id="summary-text" style="margin-top: 0.6rem;">
+              Session summaries from MisSpoke will appear here after a few turns.
+            </p>
+            <button id="btn-refresh-summary" class="secondary" type="button" style="margin-top: 0.5rem;">
+              <span>Refresh summary</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!--
+      To enable real-time video, include the Agora Web Video SDK here, for example
+      via their official CDN snippet, and ensure `window.AgoraRTC` is available.
+      The JS in app.js will gracefully fall back if the SDK is missing.
+    -->
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.1.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
