@@ -90,19 +90,12 @@ if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+
 @app.get("/", response_class=FileResponse)
 async def root() -> FileResponse:
-    """Serve the main web UI.
-
-    The UI is a single-page app in static/index.html that drives the different
-    flows: landing, tutor, writing practice, progress, and session summary.
-    """
-
     index_file = STATIC_DIR / "index.html"
-    if not index_file.exists():
-        raise HTTPException(status_code=500, detail="Frontend not built yet (missing index.html)")
-
     return FileResponse(index_file)
+
 
 
 # ---------------------------------------------------------------------------
@@ -925,20 +918,12 @@ async def summary(user_id: str = Query(..., description="User id for the current
 
 @app.get("/api/config")
 async def config() -> Dict[str, Any]:
-    """Expose non-sensitive configuration to the frontend.
-
-    Only non-sensitive values are surfaced here; secrets and tokens stay server-side.
-    The `channelName` mirrors your Agora ConvAI project channel (AGORA_CHANNEL).
-    """
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
-import os
-
-app = FastAPI()
-
-
     return {
         "appId": AGORA_APP_ID,
         "channelName": AGORA_CHANNEL,
     }
+
+
+
+
 
