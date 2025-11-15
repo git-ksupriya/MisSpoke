@@ -930,6 +930,15 @@ async def config() -> Dict[str, Any]:
     Only non-sensitive values are surfaced here; secrets and tokens stay server-side.
     The `channelName` mirrors your Agora ConvAI project channel (AGORA_CHANNEL).
     """
+from fastapi import FastAPI
+from fastapi.responses import FileResponse
+import os
+
+app = FastAPI()
+
+@app.get("/")
+def root():
+    return FileResponse(os.path.join(os.getcwd(), "index.html"))
 
     return {
         "appId": AGORA_APP_ID,
