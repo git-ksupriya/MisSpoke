@@ -936,11 +936,9 @@ import os
 
 app = FastAPI()
 
-@app.get("/")
-def root():
-    return FileResponse(os.path.join(os.getcwd(), "index.html"))
 
     return {
         "appId": AGORA_APP_ID,
         "channelName": AGORA_CHANNEL,
     }
+
